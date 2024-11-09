@@ -1,0 +1,59 @@
+name: 'ecs'
+
+description: 'Pipeline to build and update ECS container image. This does NOT create infrastructure - use the Terraform module for that.'
+
+inputs:
+  ACCOUNT_FAMILY:
+    description: "Target AWS account for deployment"
+    required: false
+
+  AWS_DEFAULT_REGION:
+    description: "AWS region where the service is hosted"
+    required: true
+
+  AWS_ACCESS_KEY_ID:
+    description: "AWS API key ID for deployment"
+    required: true
+
+  AWS_SECRET_ACCESS_KEY:
+    description: "AWS API secret key for deployment" 
+    required: true
+
+  SERVICE_NAME:
+    description: "Service name override (defaults to repository name if not specified)"
+    required: false
+
+  GO_TO_DIR:
+    description: "Directory to navigate to before starting build (defaults to current directory)"
+    required: false
+
+  POS_PEND:
+    description: "Suffix to append to service name (overrides environment name)"
+    required: false
+
+  ENVIRONMENT:
+    description: "Environment variables for build stage (contents of .env file)"
+    required: false
+
+  CI_JOB_TOKEN:
+    description: "Git deployment token for cloning dependencies in Dockerfile (via pip, npm etc)"
+    required: false
+
+  ENVIRONMENT_TEST:
+    description: "Environment variables for test stage (contents of .env.test file)"
+    required: false
+
+runs:
+  using: "docker"
+  image: 'Dockerfile'
+  entrypoint: /ecs.sh
+  env:
+    AWS_DEFAULT_REGION: ${{ inputs.AWS_DEFAULT_REGION }}
+    AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+    AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+    SERVICE_NAME: ${{ inputs.SERVICE_NAME }}
+    GO_TO_DIR: ${{ inputs.GO_TO_DIR }}
+    POS_PEND: ${{ inputs.POS_PEND }}
+    ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
+    CI_JOB_TOKEN: ${{ inputs.CI_JOB_TOKEN }}
+    ENVIRONMENT_TEST: ${{ inputs.ENVIRONMENT_TEST }}
