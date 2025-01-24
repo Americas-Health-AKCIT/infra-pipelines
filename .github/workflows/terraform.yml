@@ -49,7 +49,7 @@ jobs:
             terraform plan -out=tfplan.json -input=false -var-file ./environments/${CI_COMMIT_BRANCH}.tfvars
 
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: plano
           path: |
@@ -78,7 +78,7 @@ jobs:
         with:
           terraform_version: "1.8.4"
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           name: plano
 
