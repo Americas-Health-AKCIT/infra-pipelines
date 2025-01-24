@@ -47,7 +47,7 @@ jobs:
       - name: Checkout Pipeline Scripts
         uses: actions/checkout@v4
         with:
-          repository: lugui-co/infra-github-pipelines
+          repository: Americas-Health-AKCIT/infra-pipelines
           ref: production
           path: infra-github-pipelines
           token: ${{ secrets.FETCH_TOKEN }}
@@ -123,7 +123,7 @@ jobs:
       - name: Checkout Pipeline Scripts
         uses: actions/checkout@v4
         with:
-          repository: lugui-co/infra-github-pipelines
+          repository: Americas-Health-AKCIT/infra-pipelines
           ref: production
           path: infra-github-pipelines
           token: ${{ secrets.FETCH_TOKEN }}

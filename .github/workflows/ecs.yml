@@ -27,7 +27,7 @@ jobs:
           token: ${{ secrets.FETCH_TOKEN }}
 
       - name: deploy
-        uses: lugui-co/infra-github-pipelines/ecs@production
+        uses: Americas-Health-AKCIT/infra-pipelines/ecs@production
         with:
           ACCOUNT_FAMILY: ${{ vars.ACCOUNT_FAMILY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}

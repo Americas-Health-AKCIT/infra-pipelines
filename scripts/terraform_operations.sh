@@ -16,8 +16,8 @@ initialize_terraform() {
     local region=$2
 
     terraform init -force-copy -input=false \
-        -backend-config bucket="lugui-terraform-states-${branch}" \
-        -backend-config dynamodb_table="lugui-terraform-states-${branch}" \
+        -backend-config bucket="americashealth-terraform-state" \
+        -backend-config dynamodb_table="americashealth-terraform-state" \
         -backend-config shared_credentials_file=~/.aws/credentials \
         -backend-config profile=${branch} \
         -backend-config region=${region}
