@@ -1,3 +1,5 @@
+name: Deploy de infraestrutura com Terraform
+
 on:
   workflow_call:
     inputs:
@@ -10,98 +12,143 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
+      ACCOUNT_FAMILY: ${{ vars.ACCOUNT_FAMILY }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
+      - name: checkout
+        uses: actions/checkout@v4
         with:
-          terraform_version: "1.8.4"
+          submodules: 'recursive'
+          token: ${{ secrets.FETCH_TOKEN }}
 
+      - name: setup_go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20.4'
+
+      - name: setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 'pypy3.10'
+
+      - name: setup_node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.2.0'
+
+      - name: setup_terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"   
+
+      - name: Checkout Pipeline Scripts
+        uses: actions/checkout@v4
+        with:
+          repository: lugui-co/infra-github-pipelines
+          ref: production
+          path: infra-github-pipelines
+          token: ${{ secrets.FETCH_TOKEN }}
+               
       - name: plan
-
         run: |
-            export CI_COMMIT_BRANCH=${GITHUB_REF_NAME}
-            export CI_PROJECT_NAME=$(echo "${GITHUB_REPOSITORY}" | awk -F / '{print $2}')
-            export AWS_DEFAULT_REGION=us-east-1
-            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+          echo "Iniciando job de plan..."
+          export CI_COMMIT_BRANCH=${GITHUB_REF_NAME}
+          export CI_PROJECT_NAME=$(echo "${GITHUB_REPOSITORY}" | awk -F / '{print $2}')
 
-            echo CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
-            echo CI_PROJECT_NAME=${CI_PROJECT_NAME}
-            echo AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+          # Instalar dependências
+          sudo apt-get update && sudo apt-get install -y awscli p7zip build-essential
 
-            sudo apt-get update && sudo apt-get install -y awscli p7zip build-essential
+          # Carregar e executar scripts
+          source infra-github-pipelines/scripts/aws_setup.sh
+          source infra-github-pipelines/scripts/terraform_operations.sh
 
-            mkdir ~/.aws
-            touch ~/.aws/credentials
+          # Configurar AWS
+          setup_aws_credentials "${ACCOUNT_FAMILY}" "${CI_COMMIT_BRANCH}"
 
-            aws ssm get-parameters --names "/cicd/credentials" --with-decryption --query "Parameters[0].Value" --output text > ~/.aws/credentials
+          # Setup e execução do Terraform
+          setup_terraform_environment "${CI_COMMIT_BRANCH}" "${ACCOUNT_FAMILY}"
+          initialize_terraform "${CI_COMMIT_BRANCH}" "${AWS_DEFAULT_REGION}"
+          run_terraform_plan "${CI_COMMIT_BRANCH}"
 
-            mkdir -p ./environments
-            touch ./environments/${CI_COMMIT_BRANCH}.tfvars
-            
-            terraform init -force-copy -input=false -backend-config bucket="americashealth-terraform-state" -backend-config dynamodb_table="americashealth-terraform-state" -backend-config shared_credentials_file=~/.aws/credentials -backend-config profile=development -backend-config region=us-east-1
-            terraform workspace select ${CI_COMMIT_BRANCH} || terraform workspace new ${CI_COMMIT_BRANCH}
-            terraform plan -out=tfplan.json -input=false -var-file ./environments/${CI_COMMIT_BRANCH}.tfvars
-
-
-      - uses: actions/upload-artifact@v4
+      - name: upload_artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: plano
-          path: |
-            ./tfplan.json
-            ./.terraform
-            ./.terraform.lock.hcl
           overwrite: true
+          retention-days: 1
+          compression-level: 9
+          name: plano
+          path: ./tfplan.json
 
   apply:
     runs-on: ubuntu-22.04
-
     needs: plan
-
     environment:
       name: ${{ inputs.environment }}
 
     env:
+      ACCOUNT_FAMILY: ${{ vars.ACCOUNT_FAMILY }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
+      - name: checkout
+        uses: actions/checkout@v4
         with:
-          terraform_version: "1.8.4"
+          submodules: 'recursive'
+          token: ${{ secrets.FETCH_TOKEN }}
+      - name: setup_go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20.4'
 
-      - uses: actions/download-artifact@v4
+      - name: setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 'pypy3.10'
+
+      - name: setup_node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.2.0'
+
+      - name: setup_terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"   
+
+      - name: Checkout Pipeline Scripts
+        uses: actions/checkout@v4
+        with:
+          repository: lugui-co/infra-github-pipelines
+          ref: production
+          path: infra-github-pipelines
+          token: ${{ secrets.FETCH_TOKEN }}
+      - name: download_artifacts
+        uses: actions/download-artifact@v4
         with:
           name: plano
 
       - name: apply
-
         run: |
-            export CI_COMMIT_BRANCH=${GITHUB_REF_NAME}
-            export CI_PROJECT_NAME=$(echo "${GITHUB_REPOSITORY}" | awk -F / '{print $2}')
+          echo "Iniciando job de apply..."
+          export CI_COMMIT_BRANCH=${GITHUB_REF_NAME}
+          export CI_PROJECT_NAME=$(echo "${GITHUB_REPOSITORY}" | awk -F / '{print $2}')
 
-            sudo apt-get update && sudo apt-get install -y awscli p7zip build-essential
+          # Instalar dependências
+          sudo apt-get update && sudo apt-get install -y awscli p7zip build-essential
 
-            mkdir ~/.aws
-            touch ~/.aws/credentials
+          # Carregar e executar scripts
+          source infra-github-pipelines/scripts/aws_setup.sh
+          source infra-github-pipelines/scripts/terraform_operations.sh
 
-            aws ssm get-parameters --names "/cicd/credentials" --with-decryption --query "Parameters[0].Value" --output text > ~/.aws/credentials
+          # Configurar AWS
+          setup_aws_credentials "${ACCOUNT_FAMILY}" "${CI_COMMIT_BRANCH}"
 
-            export AWS_PROFILE=${CI_COMMIT_BRANCH}
-
-            mkdir -p ./environments
-            touch ./environments/${CI_COMMIT_BRANCH}.tfvars
-
-            sudo chown -R $(whoami):$(whoami) ./tfplan.json ./.terraform ./.terraform.lock.hcl
-
-            sudo chmod -R 777 ./tfplan.json ./.terraform ./.terraform.lock.hcl
-
-            terraform apply -auto-approve -input=false tfplan.json
+          # Setup e execução do Terraform
+          setup_terraform_environment "${CI_COMMIT_BRANCH}" "${ACCOUNT_FAMILY}"
+          initialize_terraform "${CI_COMMIT_BRANCH}" "${AWS_DEFAULT_REGION}"
+          run_terraform_apply "./tfplan.json"
